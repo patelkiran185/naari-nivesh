@@ -51,7 +51,7 @@ macos/Runner/GoogleService-Info.plist
 firebase.json
 firebase_app_id_file.json
 firebase_options.dart
-
+constants.dart
 # Flutter auto-generated files
 .pub-cache/
 ios/Flutter/Flutter.podspec
