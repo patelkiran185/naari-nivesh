@@ -13,12 +13,14 @@ import json
 load_dotenv()
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__) 
 CORS(app)
 
 # Configure Gemini API
 genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-pro')
+GEMINI_API_KEY = os.getenv('GOOGLE_API_KEY') 
+
 
 # Define levels
 LEVELS = {
@@ -60,15 +62,26 @@ def generate_image(level):
 
 def extract_options_from_json(ai_response):
     """Extract scenario and options from the AI response formatted as JSON."""
+    print(ai_response)
     try:
-        response_json = json.loads(ai_response)  # Parse AI output as JSON
+        if not ai_response:
+            raise ValueError("AI response is empty")
+
+        # Remove Markdown formatting (```json and ```)
+        ai_response = re.sub(r"^```json\s*|\s*```$", "", ai_response, flags=re.DOTALL).strip()
+
+        # Parse JSON
+        response_json = json.loads(ai_response)
+
+        # Extract scenario and options
         scenario = response_json.get("scenario", "").strip()
         options = response_json.get("options", [])
 
-        if not scenario or len(options) != 4:
-            raise ValueError("Invalid JSON format from AI")
+        if not scenario or not isinstance(options, list) or len(options) != 4:
+            raise ValueError("Invalid JSON format: Missing scenario or incorrect number of options.")
 
         return scenario, options
+    
     except Exception as e:
         print(f"Error parsing AI response: {str(e)}")
         return None, None
@@ -103,6 +116,7 @@ def get_scenario(level):
     Do NOT include any explanations beyond the scenario and the four choices.
     Do NOT add unnecessary text.
     Do NOT repeat the answer format in the output.
+    **VALID JSON FORMAT***
     '''
 
     try:
@@ -168,6 +182,183 @@ def evaluate_choice():
             "error": "Failed to generate feedback",
             "feedback": "We're having trouble evaluating your response. Please try again."
         }), 500
+
+# Predefined Lessons
+LESSONS = {
+    "beginner": [
+        {"title": "Understanding Money", "description": "Learn the basics of money, currency, and financial transactions."},
+        {"title": "Creating a Budget", "description": "How to create a simple budget to manage income and expenses."},
+        {"title": "Savings & Emergency Funds", "description": "Understanding the importance of savings and emergency funds."},
+        {"title": "Basic Banking", "description": "How to open and use a bank account for financial security."},
+        {"title": "Understanding Credit & Debt", "description": "Basics of credit, loans, and how to avoid debt traps."}
+    ],
+    "intermediate": [
+        {"title": "Smart Spending Habits", "description": "How to prioritize spending and avoid unnecessary expenses."},
+        {"title": "Different Types of Bank Accounts", "description": "Savings, current, and fixed deposit accounts explained."},
+        {"title": "Introduction to Investing", "description": "Learn about stocks, bonds, and mutual funds."},
+        {"title": "Understanding Interest Rates", "description": "How interest rates impact savings and loans."},
+        {"title": "Managing Loans Wisely", "description": "How to take loans responsibly and repay efficiently."}
+    ],
+    "advanced": [
+        {"title": "Building a Long-Term Investment Plan", "description": "How to create a sustainable investment strategy."},
+        {"title": "Tax Planning & Benefits", "description": "Understanding tax structures and savings options."},
+        {"title": "Stock Market Basics", "description": "How to analyze stocks and invest wisely."},
+        {"title": "Retirement Planning", "description": "Planning financial security for retirement."},
+        {"title": "Entrepreneurship & Financial Growth", "description": "How to start and manage a business financially."}
+    ]
+}
+
+@app.route("/selected_level", methods=["POST"])
+def selected_level():
+    data = request.get_json()
+    if not data or "level" not in data:
+        return jsonify({"error": "Invalid request, level is required"}), 400
+
+    level = data["level"].lower()
+    if level not in LESSONS:
+        return jsonify({"error": "Invalid level"}), 400
+
+    return jsonify({"message": f"Level {level} selected successfully"}), 200
+
+
+# Endpoint to Get Lessons Based on Level
+@app.route("/lessons/<level>", methods=["GET"])
+def get_lessons(level):
+    if level not in LESSONS:
+        return jsonify({"error": "Invalid level"}), 404
+    return jsonify(LESSONS[level])
+
+
+# Function to Generate Lesson Content and MCQs Separately Using Gemini API
+def generate_lesson_and_quiz(topic):
+    prompt_lesson = f'''
+    Generate a detailed educational lesson on the topic: "{topic}". Explain in simple terms, include examples and practical tips.
+
+    Structure it as follows:
+    1. **Introduction**: Explain why this topic is important.
+    2. **Key Concepts**: Provide 3-5 key points in bullet format.
+    3. **Real-Life Example**: Show a practical scenario where this is useful.
+    4. **Conclusion & Next Steps**: Summarize key takeaways and suggest what the user should do next.
+
+    Do NOT generate any quiz questions in this response.
+    Return ONLY the lesson content in simple markdown format.
+    '''
+
+    prompt_quiz = f'''
+    Create exactly five multiple-choice questions (MCQs) based on the lesson topic "{topic}". 
+    Each question should be related to the lesson content and have four answer choices.
+
+    Return the output as a JSON array with the following structure:
+
+    [
+        {{
+          "question": "[MCQ 1 question]",
+          "options": [
+            "Option 1",
+            "Option 2",
+            "Option 3",
+            "Option 4"
+          ],
+          "answer": "[Correct option]"
+        }},
+        {{
+          "question": "[MCQ 2 question]",
+          "options": [
+            "Option 1",
+            "Option 2",
+            "Option 3",
+            "Option 4"
+          ],
+          "answer": "[Correct option]"
+        }},
+        {{
+          "question": "[MCQ 3 question]",
+          "options": [
+            "Option 1",
+            "Option 2",
+            "Option 3",
+            "Option 4"
+          ],
+          "answer": "[Correct option]"
+        }},
+        {{
+          "question": "[MCQ 4 question]",
+          "options": [
+            "Option 1",
+            "Option 2",
+            "Option 3",
+            "Option 4"
+          ],
+          "answer": "[Correct option]"
+        }},
+        {{
+          "question": "[MCQ 5 question]",
+          "options": [
+            "Option 1",
+            "Option 2",
+            "Option 3",
+            "Option 4"
+          ],
+          "answer": "[Correct option]"
+        }}
+    ]
+
+    Do NOT include any explanations or unnecessary text.  Ensure that the response is a **valid JSON array** with no additional text.
+    '''
+
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key={GEMINI_API_KEY}"
+    
+    headers = {"Content-Type": "application/json"}
+
+    # Request for lesson content
+    lesson_response = requests.post(url, headers=headers, json={"contents": [{"parts": [{"text": prompt_lesson}]}]})
+    print("Lesson Response:", lesson_response.status_code, lesson_response.text)
+
+    # Request for quiz
+    quiz_response = requests.post(url, headers=headers, json={"contents": [{"parts": [{"text": prompt_quiz}]}]})
+
+    # Handle response errors
+    if lesson_response.status_code != 200 or quiz_response.status_code != 200:
+        return {"error": "Error generating content from Gemini API"}
+
+    try:
+        lesson_content = lesson_response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        quiz_content = quiz_response.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+        return {
+            "lesson": {
+                "title": topic,
+                "content": lesson_content
+            },
+            "mcqs": quiz_content  # Quiz content is already in JSON format
+        }
+    except KeyError:
+        return jsonify({"error": "Unexpected response format from Gemini API"}), 500
+
+
+# Endpoint to Generate Lesson and Quiz Separately
+@app.route("/generate_lesson/<topic>", methods=["GET"])
+def generate_lesson(topic):
+    try:
+        result = generate_lesson_and_quiz(topic)
+        print(type(result), result)
+        # Parse the MCQs string to convert it from a JSON string to actual JSON
+        mcqs_string = result["mcqs"]
+        # Remove markdown backticks if present
+        if "```json" in mcqs_string:
+            mcqs_string = mcqs_string.replace("```json", "").replace("```", "").strip()
+        
+        # Parse the string into actual JSON
+        import json
+        mcqs_json = json.loads(mcqs_string)
+        
+        # Return both content and properly parsed MCQs
+        return jsonify({
+            "content": result["lesson"]["content"],
+            "mcqs": mcqs_json
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

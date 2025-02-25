@@ -14,7 +14,7 @@ class CrisisScreen extends StatefulWidget {
 class _CrisisScreenState extends State<CrisisScreen> {
   bool isLoading = false; // ✅ Track if the request is in progress
 
-  final Map<String, int> levelMapping = {
+  final Map<String, int> levelMapping = { 
     'Basic Emergency': 1,
     'Health Crisis': 2,
     'Job Loss': 3,

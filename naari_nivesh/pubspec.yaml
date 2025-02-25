@@ -46,6 +46,8 @@ dependencies:
   confetti: ^0.8.0
   http: ^1.3.0
   flutter_dotenv: ^5.2.1
+  flutter_markdown: ^0.6.17
+
 
 dev_dependencies:
   flutter_test:
@@ -64,12 +66,15 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
+
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
   assets:
     - assets/images/
+
+
 
   # To add assets to your application, add an assets section, like this:
   # assets:

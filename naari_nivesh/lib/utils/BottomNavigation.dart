@@ -18,7 +18,7 @@ class BottomNavigation extends StatelessWidget {
         break;
       case 1:
         Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (context) => LearnScreen()));
+            context, MaterialPageRoute(builder: (context) => Learnmain())); 
         break;
       case 2:
         Navigator.pushReplacement(

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:naari_nivesh/utils/BottomNavigation.dart';
 import 'crisis.dart';
-//import financial learning screen
+import 'package:naari_nivesh/screens/learn.dart';//import financial learning screen
 
-class LearnScreen extends StatelessWidget {
-  const LearnScreen({super.key});
+class Learnmain extends StatelessWidget {
+  const Learnmain({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) { 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Naari Shiksha'),
@@ -48,10 +48,10 @@ class LearnScreen extends StatelessWidget {
                     value: '3 Modules',
                     subtitle: 'Start with savings & budgeting basics',
                     icon: Icons.account_balance_wallet,
-                    // screen: LearnScreen(),
-                    screen: CrisisScreen(), //change here
+                    screen: LearnScreen(),
+                    // screen: LearnScreen(), //change here
                   ),
-                  _buildCard(
+                  _buildCard( 
                     context: context,
                     title: 'Crisis Planning',
                     value: '5 Modules',
