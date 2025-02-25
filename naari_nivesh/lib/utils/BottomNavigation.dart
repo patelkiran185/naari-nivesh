@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:naari_nivesh/screens/learner_home.dart';
 import 'package:naari_nivesh/screens/invest.dart';
-import 'package:naari_nivesh/screens/learn.dart';
+import 'package:naari_nivesh/screens/learnmain.dart';
 import 'package:naari_nivesh/screens/profile.dart';
 import 'package:naari_nivesh/screens/community.dart';
 

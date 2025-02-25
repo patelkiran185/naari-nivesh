@@ -7,12 +7,13 @@ import 'package:flutter/material.dart';
 import 'screens/signup.dart';
 import 'screens/login.dart';
 import 'screens/learner_home.dart';
+import 'screens/scenario.dart'; // Import the ScenarioScreen
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
-  runApp(const MyApp()); 
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -24,9 +25,22 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primaryColor: Colors.teal,
-        colorScheme: ColorScheme.fromSwatch().copyWith(secondary: Colors.purple),
+        colorScheme: ColorScheme.fromSwatch().copyWith(
+          secondary: Colors.purple,
+        ),
       ),
       home: const AuthCheck(), // Automatically decides which screen to show
+      onGenerateRoute: (RouteSettings settings) {
+        if (settings.name == '/scenario') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return MaterialPageRoute(
+            builder:
+                (context) =>
+                    ScenarioScreen(level: args['level']), // Pass the level
+          );
+        }
+        return null; // Handle other routes or return a default route
+      },
     );
   }
 }
@@ -40,11 +54,17 @@ class AuthCheck extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(), // Listen to auth state
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator()); // Show loading
+          return const Center(
+            child: CircularProgressIndicator(),
+          ); // Show loading
         }
         if (snapshot.hasData) {
           return FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('users').doc(snapshot.data!.uid).get(),
+            future:
+                FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(snapshot.data!.uid)
+                    .get(),
             builder: (context, userSnapshot) {
               if (userSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -81,38 +101,63 @@ class WelcomeScreen extends StatelessWidget {
           children: [
             const Text(
               'Welcome to Naari Nivesh',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
             const SizedBox(
               width: 300,
               height: 300,
-              child: Image(image: AssetImage('assets/images/welcome.jpeg'), fit: BoxFit.contain),
+              child: Image(
+                image: AssetImage('assets/images/welcome.jpeg'),
+                fit: BoxFit.contain,
+              ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white, backgroundColor: Colors.teal,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.teal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 minimumSize: const Size(200, 50),
               ),
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginPage()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
               },
               child: const Text('Log In', style: TextStyle(fontSize: 18)),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white, backgroundColor: Colors.teal,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.teal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 minimumSize: const Size(200, 50),
               ),
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const SignUpPage()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SignUpPage()),
+                );
               },
               child: const Text('Get Started', style: TextStyle(fontSize: 18)),
             ),
