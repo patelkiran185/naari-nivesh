@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:naari_nivesh/utils/BottomNavigation.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:naari_nivesh/constants.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LearnScreen extends StatefulWidget {
   @override
@@ -21,17 +21,65 @@ class _LearnScreenState extends State<LearnScreen> {
   };
   List<Map<String, String>> currentLessons = [];
   final String backendUrl = "http://${ip}:5000";
-    Set<String> completedLessons = {};
+  Set<String> completedLessons = {};
 
   @override
   void initState() {
     super.initState();
     _fetchLessons();
+    _loadCompletedLessons();
   }
 
   String _capitalize(String text) {
     if (text.isEmpty) return text;
     return text[0].toUpperCase() + text.substring(1);
+  }
+
+  // Load completed lessons from SharedPreferences
+  Future<void> _loadCompletedLessons() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      completedLessons = Set<String>.from(prefs.getStringList('completedLessons') ?? []);
+      _calculateCompletionPercentages();
+    });
+  }
+
+  // Save completed lessons to SharedPreferences
+  Future<void> _saveCompletedLessons() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('completedLessons', completedLessons.toList());
+  }
+
+  // Calculate completion percentages for each level
+  void _calculateCompletionPercentages() {
+    for (var level in completionPercentage.keys) {
+      if (lessons[level] == null || lessons[level]!.isEmpty) {
+        completionPercentage[level] = 0.0;
+      } else {
+        int totalLessons = lessons[level]!.length;
+        int completedCount = 0;
+        
+        for (var lesson in lessons[level]!) {
+          if (completedLessons.contains('${level}:${lesson["title"]}')) {
+            completedCount++;
+          }
+        }
+        
+        completionPercentage[level] = totalLessons > 0 
+            ? (completedCount / totalLessons) * 100 
+            : 0.0;
+      }
+    }
+    setState(() {});
+  }
+
+  // Mark a lesson as complete
+  void markLessonAsComplete(String lessonTitle) {
+    setState(() {
+      completedLessons.add('$selectedLevel:$lessonTitle');
+      _saveCompletedLessons();
+      _calculateCompletionPercentages();
+    });
   }
 
   Future<void> _fetchLessons() async {
@@ -55,6 +103,7 @@ class _LearnScreenState extends State<LearnScreen> {
 
       setState(() {
         lessons = loadedLessons;
+        _calculateCompletionPercentages();
       });
     } catch (e) {
       print("Error fetching lessons: $e");
@@ -122,10 +171,21 @@ class _LearnScreenState extends State<LearnScreen> {
             itemCount: currentLessons.length,
             itemBuilder: (context, index) {
               String title = currentLessons[index]["title"]!;
+              bool isCompleted = completedLessons.contains('$selectedLevel:$title');
+              
               return Card(
                 margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
-                  title: Text(title, style: TextStyle(fontSize: 16)),
+                  title: Row(
+                    children: [
+                      Text(title, style: TextStyle(fontSize: 16)),
+                      if (isCompleted)
+                        Padding(
+                          padding: EdgeInsets.only(left: 8),
+                          child: Icon(Icons.check_circle, color: Colors.green, size: 18)
+                        )
+                    ],
+                  ),
                   subtitle: Text(currentLessons[index]["description"]!),
                   trailing: Icon(Icons.arrow_forward_ios),
                   onTap: () => _openLesson(title),
@@ -141,14 +201,33 @@ class _LearnScreenState extends State<LearnScreen> {
   void _openLesson(String lesson) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => LessonScreen(lesson: lesson)),
-    );
+      MaterialPageRoute(
+        builder: (context) => LessonScreen(
+          lesson: lesson, 
+          level: selectedLevel,
+          onLessonComplete: markLessonAsComplete,
+          isCompleted: completedLessons.contains('$selectedLevel:$lesson'),
+        )
+      ),
+    ).then((_) {
+      // Refresh after returning from lesson screen
+      setState(() {});
+    });
   }
 }
 
 class LessonScreen extends StatefulWidget {
   final String lesson;
-  LessonScreen({required this.lesson});
+  final String level;
+  final Function(String) onLessonComplete;
+  final bool isCompleted;
+  
+  LessonScreen({
+    required this.lesson, 
+    required this.level,
+    required this.onLessonComplete,
+    required this.isCompleted,
+  });
 
   @override
   _LessonScreenState createState() => _LessonScreenState();
@@ -158,91 +237,120 @@ class _LessonScreenState extends State<LessonScreen> {
   String lessonContent = "Loading...";
   List<Map<String, dynamic>> quizQuestions = [];
   final String backendUrl = "http://192.168.29.200:5000";
+  bool isLessonCompleted = false;
 
   @override
   void initState() {
     super.initState();
+    isLessonCompleted = widget.isCompleted;
     _fetchLessonContent();
   }
   
- Future<void> _fetchLessonContent() async {
-  try {
-    final response = await http.get(Uri.parse('$backendUrl/generate_lesson/${Uri.encodeComponent(widget.lesson)}'));
+  Future<void> _fetchLessonContent() async {
+    try {
+      final response = await http.get(Uri.parse('$backendUrl/generate_lesson/${Uri.encodeComponent(widget.lesson)}'));
 
-    if (response.statusCode == 200) {
-      var data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
 
-      // Debugging info
-      print("Response Data Type: ${data.runtimeType}");
-      print("Content Type: ${data['content'].runtimeType}");
-      print("MCQs Type: ${data['mcqs'].runtimeType}");
+        // Debugging info
+        print("Response Data Type: ${data.runtimeType}");
+        print("Content Type: ${data['content'].runtimeType}");
+        print("MCQs Type: ${data['mcqs'].runtimeType}");
 
-      String content = data["content"] ?? "No content available";
-      List<Map<String, dynamic>> parsedMcqs = [];
+        String content = data["content"] ?? "No content available";
+        List<Map<String, dynamic>> parsedMcqs = [];
 
-      // ✅ **Fix Heading Formatting in Content**
-      content = content.replaceAllMapped(RegExp(r'\*{3}([^\*]+)\*{2}'), (match) {
-        return "**${match.group(1)}**"; // Proper bold formatting
-      });
+        // ✅ **Fix Heading Formatting in Content**
+        content = content.replaceAllMapped(RegExp(r'\*{3}([^\*]+)\*{2}'), (match) {
+          return "**${match.group(1)}**"; // Proper bold formatting
+        });
 
-      // ✅ **Handle Different MCQs Formats**
-      if (data["mcqs"] is List) {
-        parsedMcqs = List<Map<String, dynamic>>.from(
-          data["mcqs"].map((q) => Map<String, dynamic>.from(q))
-        );
-      } else if (data["mcqs"] is String) {
-        try {
-          String mcqsString = data["mcqs"];
+        // ✅ **Handle Different MCQs Formats**
+        if (data["mcqs"] is List) {
+          parsedMcqs = List<Map<String, dynamic>>.from(
+            data["mcqs"].map((q) => Map<String, dynamic>.from(q))
+          );
+        } else if (data["mcqs"] is String) {
+          try {
+            String mcqsString = data["mcqs"];
 
-          // Remove Markdown code block indicators if present
-          if (mcqsString.contains("```json")) {
-            mcqsString = mcqsString.replaceAll("```json", "").replaceAll("```", "").trim();
+            // Remove Markdown code block indicators if present
+            if (mcqsString.contains("```json")) {
+              mcqsString = mcqsString.replaceAll("```json", "").replaceAll("```", "").trim();
+            }
+
+            parsedMcqs = List<Map<String, dynamic>>.from(jsonDecode(mcqsString));
+          } catch (e) {
+            print("Error parsing MCQs string: $e");
           }
-
-          parsedMcqs = List<Map<String, dynamic>>.from(jsonDecode(mcqsString));
-        } catch (e) {
-          print("Error parsing MCQs string: $e");
         }
+
+        // ✅ **Update State**
+        setState(() {
+          lessonContent = content;
+          quizQuestions = parsedMcqs;
+        });
+
+        print("Loaded ${quizQuestions.length} quiz questions.");
+      } else {
+        print("HTTP Error: ${response.statusCode}");
+        setState(() {
+          lessonContent = "Error loading lesson content (HTTP ${response.statusCode})";
+          quizQuestions = [];
+        });
       }
-
-      // ✅ **Update State**
+    } catch (e) {
+      print("Error fetching lesson content: $e");
       setState(() {
-        lessonContent = content;
-        quizQuestions = parsedMcqs;
-      });
-
-      print("Loaded ${quizQuestions.length} quiz questions.");
-    } else {
-      print("HTTP Error: ${response.statusCode}");
-      setState(() {
-        lessonContent = "Error loading lesson content (HTTP ${response.statusCode})";
+        lessonContent = "Error loading lesson content: $e";
         quizQuestions = [];
       });
     }
-  } catch (e) {
-    print("Error fetching lesson content: $e");
-    setState(() {
-      lessonContent = "Error loading lesson content: $e";
-      quizQuestions = [];
-    });
   }
-}
 
-// ✅ **Start Quiz Function with User Feedback**
-void _startQuiz() {
-  if (quizQuestions.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Quiz questions are still loading. Please wait.")),
+  // ✅ **Start Quiz Function with User Feedback**
+  void _startQuiz() {
+    if (quizQuestions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Quiz questions are still loading. Please wait.")),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QuizScreen(
+          questions: quizQuestions,
+          onQuizComplete: _handleQuizComplete,
+        )
+      ),
     );
-    return;
   }
 
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => QuizScreen(questions: quizQuestions)),
-  );
-}
-
+  // Handle quiz completion
+  void _handleQuizComplete(int score, int total) {
+    double percentage = (score / total) * 100;
+    
+    // If score is >= 70% and not already completed
+    if (percentage >= 70 && !isLessonCompleted) {
+      setState(() {
+        isLessonCompleted = true;
+      });
+      
+      // Mark the lesson as complete in parent
+      widget.onLessonComplete(widget.lesson);
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Congratulations! Lesson marked as complete."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -256,9 +364,33 @@ void _startQuiz() {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.lesson,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.lesson,
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (isLessonCompleted)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.green)
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        SizedBox(width: 4),
+                        Text('Completed', style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  )
+              ],
             ),
             SizedBox(height: 16),
             MarkdownBody(data: lessonContent),
@@ -279,9 +411,15 @@ void _startQuiz() {
     );
   }
 }
+
 class QuizScreen extends StatefulWidget {
   final List<Map<String, dynamic>> questions;
-  QuizScreen({required this.questions});
+  final Function(int score, int total)? onQuizComplete;
+  
+  QuizScreen({
+    required this.questions,
+    this.onQuizComplete,
+  });
 
   @override
   _QuizScreenState createState() => _QuizScreenState();
@@ -301,32 +439,32 @@ class _QuizScreenState extends State<QuizScreen> {
     correctAnswers = 0;
   }
 
- void _selectAnswer(String answer) {
-  setState(() {
-    // Store the previous answer before updating
-    String? previousAnswer = selectedAnswers[currentQuestionIndex];
-    
-    // Update the selected answer
-    selectedAnswers[currentQuestionIndex] = answer;
-    showFeedback = true;
-    
-    // Get the correct answer for the current question
-    String correctAnswer = widget.questions[currentQuestionIndex]['answer'];
-    
-    // Update the score based on the new answer
-    if (answer == correctAnswer) {
-      // Only increment if this is a new correct answer
-      if (previousAnswer != correctAnswer) {
-        correctAnswers++;
+  void _selectAnswer(String answer) {
+    setState(() {
+      // Store the previous answer before updating
+      String? previousAnswer = selectedAnswers[currentQuestionIndex];
+      
+      // Update the selected answer
+      selectedAnswers[currentQuestionIndex] = answer;
+      showFeedback = true;
+      
+      // Get the correct answer for the current question
+      String correctAnswer = widget.questions[currentQuestionIndex]['answer'];
+      
+      // Update the score based on the new answer
+      if (answer == correctAnswer) {
+        // Only increment if this is a new correct answer
+        if (previousAnswer != correctAnswer) {
+          correctAnswers++;
+        }
+      } else {
+        // If changing from correct to incorrect, decrement
+        if (previousAnswer == correctAnswer) {
+          correctAnswers--;
+        }
       }
-    } else {
-      // If changing from correct to incorrect, decrement
-      if (previousAnswer == correctAnswer) {
-        correctAnswers--;
-      }
-    }
-  });
-}
+    });
+  }
 
   void _nextQuestion() {
     if (currentQuestionIndex < widget.questions.length - 1) {
@@ -338,6 +476,11 @@ class _QuizScreenState extends State<QuizScreen> {
       setState(() {
         quizCompleted = true;
       });
+      
+      // Call callback when quiz is completed
+      if (widget.onQuizComplete != null) {
+        widget.onQuizComplete!(correctAnswers, widget.questions.length);
+      }
     }
   }
 
@@ -542,6 +685,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Widget _buildResultScreen() {
     double percentage = (correctAnswers / widget.questions.length) * 100;
+    bool passedQuiz = percentage >= 70;
     
     return Scaffold(
       appBar: AppBar(
@@ -554,9 +698,9 @@ class _QuizScreenState extends State<QuizScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              percentage >= 70 ? Icons.emoji_events : Icons.school,
+              passedQuiz ? Icons.emoji_events : Icons.school,
               size: 80,
-              color: Colors.teal,
+              color: passedQuiz ? Colors.teal : Colors.orange,
             ),
             SizedBox(height: 24),
             Text(
@@ -573,10 +717,73 @@ class _QuizScreenState extends State<QuizScreen> {
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
-                color: percentage >= 70 ? Colors.teal : Colors.orange,
+                color: passedQuiz ? Colors.teal : Colors.orange,
               ),
             ),
             SizedBox(height: 32),
+            if (passedQuiz)
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      "Congratulations! You've passed the quiz!",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "This lesson has been marked as complete.",
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.green.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      "Almost there!",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "You need to score at least 70% to complete this lesson.",
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.orange.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
