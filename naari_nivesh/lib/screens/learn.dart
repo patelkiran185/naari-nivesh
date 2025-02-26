@@ -236,7 +236,7 @@ class LessonScreen extends StatefulWidget {
 class _LessonScreenState extends State<LessonScreen> {
   String lessonContent = "Loading...";
   List<Map<String, dynamic>> quizQuestions = [];
-  final String backendUrl = "http://192.168.29.200:5000";
+  final String backendUrl = "http://${ip}:5000";
   bool isLessonCompleted = false;
 
   @override
