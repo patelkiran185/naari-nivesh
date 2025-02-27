@@ -20,6 +20,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _confirmPasswordController = TextEditingController();
 
   String selectedRole = 'Learner'; // Default role
+  String selectedLanguage = 'English'; // Default language
   bool _isLoading = false;
 
   void _signUp() async {
@@ -57,6 +58,7 @@ class _SignUpPageState extends State<SignUpPage> {
           "name": name,
           "email": email,
           "role": selectedRole,
+          "languagee": selectedLanguage,
           "uid": user.uid,
           "createdAt": FieldValue.serverTimestamp(),
         });
@@ -150,6 +152,28 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
+
+                  // Language selection dropdown
+                  DropdownButtonFormField<String>(
+                    value: selectedLanguage,
+                    items: const [
+                      DropdownMenuItem(value: 'English', child: Text('English')),
+                      DropdownMenuItem(value: 'Hindi', child: Text('Hindi')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        selectedLanguage = value!;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Select Language',
+                      prefixIcon: const Icon(Icons.person_outline, color: Colors.teal),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
 
                   // Sign Up Button
                   ElevatedButton(
