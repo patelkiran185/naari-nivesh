@@ -24,7 +24,8 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
   final String backendUrl = "http://${ip}:5000";
   Set<String> completedLessons = {};
   late AnimationController _animationController;
-  
+  String selectedLanguage = "English"; // Default language
+
   @override
   void initState() {
     super.initState();
@@ -96,7 +97,9 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
       Map<String, List<Map<String, String>>> loadedLessons = {};
 
       for (var level in levels) {
-        final response = await http.get(Uri.parse('$backendUrl/lessons/$level'));
+        final response = await http.get(
+          Uri.parse('$backendUrl/lessons/$level?language=$selectedLanguage'),
+        );
 
         if (response.statusCode == 200) {
           List<dynamic> lessonList = jsonDecode(response.body);
@@ -139,6 +142,23 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
         )),
         backgroundColor: Colors.teal.shade700,
         actions: [
+          // Language selection dropdown
+          DropdownButton<String>(
+            value: selectedLanguage,
+            onChanged: (String? newValue) {
+              setState(() {
+                selectedLanguage = newValue!;
+                _fetchLessons(); // Fetch lessons with the new language
+              });
+            },
+            items: <String>["English", "Hindi"]
+                .map<DropdownMenuItem<String>>((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value),
+              );
+            }).toList(),
+          ),
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: () {
@@ -556,6 +576,7 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
           level: selectedLevel,
           onLessonComplete: markLessonAsComplete,
           isCompleted: completedLessons.contains('$selectedLevel:$lesson'),
+          language: selectedLanguage, // Pass the selected language
         )
       ),
     ).then((_) {
@@ -569,12 +590,14 @@ class LessonScreen extends StatefulWidget {
   final String level;
   final Function(String) onLessonComplete;
   final bool isCompleted;
+  final String language; // Add language parameter
   
   LessonScreen({
     required this.lesson, 
     required this.level,
     required this.onLessonComplete,
     required this.isCompleted,
+    required this.language, // Add language parameter
   });
 
   @override
@@ -608,7 +631,9 @@ class _LessonScreenState extends State<LessonScreen> {
     });
     
     try {
-      final response = await http.get(Uri.parse('$backendUrl/generate_lesson/${Uri.encodeComponent(widget.lesson)}'));
+      final response = await http.get(
+        Uri.parse('$backendUrl/generate_lesson/${Uri.encodeComponent(widget.lesson)}?language=${widget.language}'),
+      );
 
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
@@ -634,7 +659,11 @@ class _LessonScreenState extends State<LessonScreen> {
 
             parsedMcqs = List<Map<String, dynamic>>.from(jsonDecode(mcqsString));
           } catch (e) {
-            print("Error parsing MCQs string: $e");
+            setState(() {
+              lessonContent = "Error loading lesson content: $e";
+              quizQuestions = [];
+              isLoading = false;
+            });
           }
         }
 

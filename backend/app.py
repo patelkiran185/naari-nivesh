@@ -92,6 +92,8 @@ def get_scenario(level):
     if level not in LEVELS:
         return jsonify({"error": "Invalid level"}), 404
 
+    language = request.args.get('language', 'English')  # Default to English
+
     prompt = f'''
     Imagine you are a rural woman running a small business or trying to become financially independent.
     Suddenly, a crisis occurs that threatens your ability to sustain yourself. Describe the situation in the
@@ -119,6 +121,15 @@ def get_scenario(level):
     **VALID JSON FORMAT***
     '''
 
+    if language == "Hindi":
+        prompt += "\n\nGenerate the response in Hindi."
+
+    if language == "Telugu":
+        prompt += "\n\nGenerate the response in Telugu."
+
+    if language == "Tamil":
+        prompt += "\n\nGenerate the response in Tamil."
+
     try:
         response = model.generate_content(prompt)
         scenario_text = response.text.strip()
@@ -142,13 +153,14 @@ def get_scenario(level):
     except Exception as e:
         print(f"Error generating scenario: {str(e)}")
         return jsonify({"error": "Failed to generate scenario"}), 500
-
+    
 @app.route('/evaluate', methods=['POST'])
 def evaluate_choice():
     """Endpoint to evaluate user's choice using Gemini"""
     data = request.get_json()
     choice = data.get('choice')
     scenario = data.get('scenario')
+    language = data.get('language', 'English')  # Default to English
 
     if not choice or not scenario:
         return jsonify({"error": "Invalid input"}), 400
@@ -167,7 +179,16 @@ def evaluate_choice():
 
     Format your response to the user (this is a crisis readiness planner and everything is a simulation).
     Focus on what they did well and/or how they could improve their response.
-    Keep it very breif, educational and encouraging. If the answer is incorrect, kindly suggest they try again."""
+    Keep it very brief, educational and encouraging. If the answer is incorrect, kindly suggest they try again."""
+
+    if language == "Hindi":
+        prompt += "\n\nGenerate the response in Hindi."
+
+    if language == "Telugu":
+        prompt += "\n\nGenerate the response in Telugu."
+
+    if language == "Tamil":
+        prompt += "\n\nGenerate the response in Tamil."
 
     try:
         # Generate response using Gemini
@@ -222,12 +243,134 @@ def selected_level():
 
 
 # Endpoint to Get Lessons Based on Level
-@app.route("/lessons/<level>", methods=["GET"])
+@app.route('/lessons/<level>', methods=['GET'])
 def get_lessons(level):
     if level not in LESSONS:
         return jsonify({"error": "Invalid level"}), 404
-    return jsonify(LESSONS[level])
 
+    language = request.args.get('language', 'English')  # Default to English
+
+    lessons = LESSONS.get(level, [])
+    
+    if language == "Hindi":
+        # Modify the prompt to generate content in Hindi
+        for lesson in lessons:
+            lesson["title"] = f"{lesson['title']} (हिंदी)"
+            lesson["description"] = f"{lesson['description']} (हिंदी)"
+
+    return jsonify(lessons)
+
+@app.route('/generate_lesson/<topic>', methods=['GET'])
+def generate_lesson(topic):
+    try:
+        language = request.args.get('language', 'English')  # Default to English
+
+        # Prompt for lesson content
+        prompt_lesson = f'''
+        Generate a detailed educational lesson on the topic: "{topic}". Explain in simple terms, include examples and practical tips.
+
+        Structure it as follows:
+        1. **Introduction**: Explain why this topic is important.
+        2. **Key Concepts**: Provide 3-5 key points in bullet format.
+        3. **Real-Life Example**: Show a practical scenario where this is useful.
+        4. **Conclusion & Next Steps**: Summarize key takeaways and suggest what the user should do next.
+
+        Do NOT generate any quiz questions in this response.
+        Return ONLY the lesson content in simple markdown format.
+        '''
+
+        if language == "Hindi":
+            prompt_lesson += "\n\nGenerate the response in Hindi."
+
+        # Generate lesson content using Gemini API
+        response = model.generate_content(prompt_lesson)
+        lesson_content = response.text.strip()
+
+        # Prompt for quiz questions
+        prompt_quiz = f'''
+        Create exactly five multiple-choice questions (MCQs) based on the lesson topic "{topic}". 
+        Each question should be related to the lesson content and have four answer choices.
+
+        Return the output as a JSON array with the following structure:
+
+        [
+            {{
+              "question": "[MCQ 1 question]",
+              "options": [
+                "Option 1",
+                "Option 2",
+                "Option 3",
+                "Option 4"
+              ],
+              "answer": "[Correct option]"
+            }},
+            {{
+              "question": "[MCQ 2 question]",
+              "options": [
+                "Option 1",
+                "Option 2",
+                "Option 3",
+                "Option 4"
+              ],
+              "answer": "[Correct option]"
+            }},
+            {{
+              "question": "[MCQ 3 question]",
+              "options": [
+                "Option 1",
+                "Option 2",
+                "Option 3",
+                "Option 4"
+              ],
+              "answer": "[Correct option]"
+            }},
+            {{
+              "question": "[MCQ 4 question]",
+              "options": [
+                "Option 1",
+                "Option 2",
+                "Option 3",
+                "Option 4"
+              ],
+              "answer": "[Correct option]"
+            }},
+            {{
+              "question": "[MCQ 5 question]",
+              "options": [
+                "Option 1",
+                "Option 2",
+                "Option 3",
+                "Option 4"
+              ],
+              "answer": "[Correct option]"
+            }}
+        ]
+
+        Do NOT include any explanations or unnecessary text. Ensure that the response is a **valid JSON array** with no additional text.
+        '''
+
+        if language == "Hindi":
+            prompt_quiz += "\n\nGenerate the response in Hindi."
+
+        # Generate quiz questions using Gemini API
+        quiz_response = model.generate_content(prompt_quiz)
+        quiz_content = quiz_response.text.strip()
+
+        # Parse quiz content
+        try:
+            if "```json" in quiz_content:
+                quiz_content = quiz_content.replace("```json", "").replace("```", "").strip()
+            quiz_questions = json.loads(quiz_content)
+        except Exception as e:
+            print(f"Error parsing quiz content: {e}")
+            quiz_questions = []
+
+        return jsonify({
+            "content": lesson_content,
+            "mcqs": quiz_questions
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Function to Generate Lesson Content and MCQs Separately Using Gemini API
 def generate_lesson_and_quiz(topic):
@@ -334,31 +477,6 @@ def generate_lesson_and_quiz(topic):
         }
     except KeyError:
         return jsonify({"error": "Unexpected response format from Gemini API"}), 500
-
-
-# Endpoint to Generate Lesson and Quiz Separately
-@app.route("/generate_lesson/<topic>", methods=["GET"])
-def generate_lesson(topic):
-    try:
-        result = generate_lesson_and_quiz(topic)
-        print(type(result), result)
-        # Parse the MCQs string to convert it from a JSON string to actual JSON
-        mcqs_string = result["mcqs"]
-        # Remove markdown backticks if present
-        if "```json" in mcqs_string:
-            mcqs_string = mcqs_string.replace("```json", "").replace("```", "").strip()
-        
-        # Parse the string into actual JSON
-        import json
-        mcqs_json = json.loads(mcqs_string)
-        
-        # Return both content and properly parsed MCQs
-        return jsonify({
-            "content": result["lesson"]["content"],
-            "mcqs": mcqs_json
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

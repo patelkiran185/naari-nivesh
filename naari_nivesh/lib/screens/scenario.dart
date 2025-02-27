@@ -21,6 +21,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
   String feedback = "";
   bool isLoading = true; // Track loading state
   late ConfettiController _confettiController; // 🎉 Confetti controller
+  String selectedLanguage = "English"; // Default language
 
   @override
   void initState() {
@@ -33,8 +34,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
 
   @override
   void dispose() {
-    _confettiController
-        .dispose(); // 🎉 Dispose confetti controller when leaving the screen
+    _confettiController.dispose(); // 🎉 Dispose confetti controller
     super.dispose();
   }
 
@@ -42,7 +42,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     setState(() => isLoading = true);
     try {
       final response = await http.get(
-        Uri.parse('http://${ip}:5000/scenario/${widget.level}'),
+        Uri.parse('http://${ip}:5000/scenario/${widget.level}?language=$selectedLanguage'),
       );
 
       if (response.statusCode == 200) {
@@ -73,7 +73,11 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
       final response = await http.post(
         Uri.parse('http://${ip}:5000/evaluate'),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"choice": choice, "scenario": scenario}),
+        body: jsonEncode({
+          "choice": choice,
+          "scenario": scenario,
+          "language": selectedLanguage, // Pass selected language to backend
+        }),
       );
 
       if (response.statusCode == 200) {
@@ -117,7 +121,28 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Emergency Scenario")),
+      appBar: AppBar(
+        title: Text("Emergency Scenario"),
+        actions: [
+          // Language selection dropdown
+          DropdownButton<String>(
+            value: selectedLanguage,
+            onChanged: (String? newValue) {
+              setState(() {
+                selectedLanguage = newValue!;
+                scenarioFuture = fetchScenario(); // Fetch scenario with new language
+              });
+            },
+            items: <String>["English", "Hindi", "Telugu", "Tamil"]
+                .map<DropdownMenuItem<String>>((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           if (isLoading)
