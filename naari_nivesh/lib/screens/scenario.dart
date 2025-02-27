@@ -133,7 +133,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
                 scenarioFuture = fetchScenario(); // Fetch scenario with new language
               });
             },
-            items: <String>["English", "Hindi", "Telugu", "Tamil"]
+            items: <String>["English", "Hindi", "Tamil", "Telugu"]
                 .map<DropdownMenuItem<String>>((String value) {
               return DropdownMenuItem<String>(
                 value: value,

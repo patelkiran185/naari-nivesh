@@ -151,7 +151,7 @@ class _LearnScreenState extends State<LearnScreen> with SingleTickerProviderStat
                 _fetchLessons(); // Fetch lessons with the new language
               });
             },
-            items: <String>["English", "Hindi"]
+            items: <String>["English", "Hindi", "Tamil", "Telugu"]
                 .map<DropdownMenuItem<String>>((String value) {
               return DropdownMenuItem<String>(
                 value: value,

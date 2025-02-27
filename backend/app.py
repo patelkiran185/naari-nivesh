@@ -258,6 +258,19 @@ def get_lessons(level):
             lesson["title"] = f"{lesson['title']} (हिंदी)"
             lesson["description"] = f"{lesson['description']} (हिंदी)"
 
+    if language == "Tamil":
+        # Modify the prompt to generate content in Tamil
+        for lesson in lessons:
+            lesson["title"] = f"{lesson['title']} (தமிழ்)"
+            lesson["description"] = f"{lesson['description']} (தமிழ்)"
+
+    if language == "Telugu":
+        # Modify the prompt to generate content in Telugu
+        for lesson in lessons:
+            lesson["title"] = f"{lesson['title']} (తెలుగు)"
+            lesson["description"] = f"{lesson['description']} (తెలుగు)"
+
+
     return jsonify(lessons)
 
 @app.route('/generate_lesson/<topic>', methods=['GET'])
@@ -281,6 +294,12 @@ def generate_lesson(topic):
 
         if language == "Hindi":
             prompt_lesson += "\n\nGenerate the response in Hindi."
+
+        if language == "Telugu":
+            prompt_lesson += "\n\nGenerate the response in Telugu."  # Fixed: Use prompt_lesson instead of prompt
+
+        if language == "Tamil":
+            prompt_lesson += "\n\nGenerate the response in Tamil."  # Fixed: Use prompt_lesson instead of prompt
 
         # Generate lesson content using Gemini API
         response = model.generate_content(prompt_lesson)
@@ -352,6 +371,12 @@ def generate_lesson(topic):
         if language == "Hindi":
             prompt_quiz += "\n\nGenerate the response in Hindi."
 
+        if language == "Telugu":
+            prompt_quiz += "\n\nGenerate the response in Telugu."  # Fixed: Use prompt_quiz instead of prompt
+
+        if language == "Tamil":
+            prompt_quiz += "\n\nGenerate the response in Tamil."  # Fixed: Use prompt_quiz instead of prompt
+
         # Generate quiz questions using Gemini API
         quiz_response = model.generate_content(prompt_quiz)
         quiz_content = quiz_response.text.strip()
@@ -371,112 +396,6 @@ def generate_lesson(topic):
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-# Function to Generate Lesson Content and MCQs Separately Using Gemini API
-def generate_lesson_and_quiz(topic):
-    prompt_lesson = f'''
-    Generate a detailed educational lesson on the topic: "{topic}". Explain in simple terms, include examples and practical tips.
-
-    Structure it as follows:
-    1. **Introduction**: Explain why this topic is important.
-    2. **Key Concepts**: Provide 3-5 key points in bullet format.
-    3. **Real-Life Example**: Show a practical scenario where this is useful.
-    4. **Conclusion & Next Steps**: Summarize key takeaways and suggest what the user should do next.
-
-    Do NOT generate any quiz questions in this response.
-    Return ONLY the lesson content in simple markdown format.
-    '''
-
-    prompt_quiz = f'''
-    Create exactly five multiple-choice questions (MCQs) based on the lesson topic "{topic}". 
-    Each question should be related to the lesson content and have four answer choices.
-
-    Return the output as a JSON array with the following structure:
-
-    [
-        {{
-          "question": "[MCQ 1 question]",
-          "options": [
-            "Option 1",
-            "Option 2",
-            "Option 3",
-            "Option 4"
-          ],
-          "answer": "[Correct option]"
-        }},
-        {{
-          "question": "[MCQ 2 question]",
-          "options": [
-            "Option 1",
-            "Option 2",
-            "Option 3",
-            "Option 4"
-          ],
-          "answer": "[Correct option]"
-        }},
-        {{
-          "question": "[MCQ 3 question]",
-          "options": [
-            "Option 1",
-            "Option 2",
-            "Option 3",
-            "Option 4"
-          ],
-          "answer": "[Correct option]"
-        }},
-        {{
-          "question": "[MCQ 4 question]",
-          "options": [
-            "Option 1",
-            "Option 2",
-            "Option 3",
-            "Option 4"
-          ],
-          "answer": "[Correct option]"
-        }},
-        {{
-          "question": "[MCQ 5 question]",
-          "options": [
-            "Option 1",
-            "Option 2",
-            "Option 3",
-            "Option 4"
-          ],
-          "answer": "[Correct option]"
-        }}
-    ]
-
-    Do NOT include any explanations or unnecessary text.  Ensure that the response is a **valid JSON array** with no additional text.
-    '''
-
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key={GEMINI_API_KEY}"
     
-    headers = {"Content-Type": "application/json"}
-
-    # Request for lesson content
-    lesson_response = requests.post(url, headers=headers, json={"contents": [{"parts": [{"text": prompt_lesson}]}]})
-    print("Lesson Response:", lesson_response.status_code, lesson_response.text)
-
-    # Request for quiz
-    quiz_response = requests.post(url, headers=headers, json={"contents": [{"parts": [{"text": prompt_quiz}]}]})
-
-    # Handle response errors
-    if lesson_response.status_code != 200 or quiz_response.status_code != 200:
-        return {"error": "Error generating content from Gemini API"}
-
-    try:
-        lesson_content = lesson_response.json()["candidates"][0]["content"]["parts"][0]["text"]
-        quiz_content = quiz_response.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-        return {
-            "lesson": {
-                "title": topic,
-                "content": lesson_content
-            },
-            "mcqs": quiz_content  # Quiz content is already in JSON format
-        }
-    except KeyError:
-        return jsonify({"error": "Unexpected response format from Gemini API"}), 500
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
