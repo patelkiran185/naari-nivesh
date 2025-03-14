@@ -19,8 +19,9 @@ CORS(app)
 # Configure Gemini API
 genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
 model = genai.GenerativeModel('gemini-1.5-pro')
-GEMINI_API_KEY = os.getenv('GOOGLE_API_KEY') 
+# GEMINI_API_KEY = os.getenv('GOOGLE_API_KEY') 
 
+GEMINI_API_KEY="AIzaSyDGlfkDJJofi332TBSmSkiyJP0Qy3i8JUI"
 
 # Define levels
 LEVELS = {
